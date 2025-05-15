@@ -86,7 +86,7 @@ static const char *EventNames[] = {
 /****************************************************************************/
 // Framework capacity settings
 #define MAX_NUM_SERVICES 8
-#define NUM_SERVICES 2
+#define NUM_SERVICES 3
 
 /****************************************************************************/
 // Definitions for Service 0 (required)
@@ -107,13 +107,9 @@ static const char *EventNames[] = {
 
 // These are the definitions for Service 2
 #if NUM_SERVICES > 2
-// the header file with the public fuction prototypes
-#define SERV_2_HEADER "TestService.h"
-// the name of the Init function
-#define SERV_2_INIT TestServiceInit
-// the name of the run function
-#define SERV_2_RUN TestServiceRun
-// How big should this services Queue be?
+#define SERV_2_HEADER "HCSR04Service.h"
+#define SERV_2_INIT   InitHCSR04Service
+#define SERV_2_RUN    RunHCSR04Service
 #define SERV_2_QUEUE_SIZE 3
 #endif
 

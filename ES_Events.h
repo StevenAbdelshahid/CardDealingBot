@@ -25,6 +25,8 @@ typedef struct ES_Event_t {
     uint16_t   EventParam;      // parameter value for use w/ this event
 }ES_Event;
 
+ULTRASONIC_READY,          // distance in EventParam (mm)
+
 #define INIT_EVENT  (ES_Event){ES_INIT,0x0000}
 #define ENTRY_EVENT (ES_Event){ES_ENTRY,0x0000}
 #define EXIT_EVENT  (ES_Event){ES_EXIT,0x0000}

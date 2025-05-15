@@ -235,6 +235,12 @@
 #define PIN11 0x0800  //0b0000 1000 0000 0000 - BIT 11
 #define PIN12 0x1000  //0b0001 0000 0000 0000 - BIT 12
 
+
+#define HCSR04_TRIG_TRIS  PORTY04_TRIS   // RD3
+#define HCSR04_TRIG_LAT   PORTY04_LAT
+#define HCSR04_ECHO_TRIS  PORTY03_TRIS   // RD11 / IC1
+#define HCSR04_ECHO_BIT   PORTY03_BIT
+
 /*******************************************************************************
  * PUBLIC FUNCTION PROTOTYPES                                                  *
  ******************************************************************************/
