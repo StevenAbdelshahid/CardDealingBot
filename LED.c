@@ -6,7 +6,6 @@
  */
 #include "BOARD.h"
 #include <xc.h>
-#include <serial.h>
 #include <LED.h>
 
 

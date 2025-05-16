@@ -4,7 +4,7 @@
   based on the Gen 2 Events and Services Framework
 
  ****************************************************************************/
-
+#define ULTRASONIC_TIMER 0   // if timer 0 was UNUSED before
 #ifndef ServTemplate_H
 #define ServTemplate_H
 

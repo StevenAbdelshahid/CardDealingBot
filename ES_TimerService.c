@@ -24,7 +24,6 @@
 #include "ES_Framework.h"
 #include "ES_TimerService.h"
 #include <BOARD.h>
-#include <ES_TattleTale.h>
 
 #ifdef TIMER_SERVICE_TEST
 #include <stdio.h>

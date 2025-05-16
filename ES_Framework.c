@@ -19,10 +19,8 @@
 #include "ES_Queue.h"
 #include "ES_PostList.h"
 #include "ES_CheckEvents.h"
-#include "ES_LookupTables.h"
 #include "ES_Timers.h"
 #include "ES_Framework.h"
-#include "ES_KeyboardInput.h"
 #include "ES_Events.h"
 #include <stdio.h>
 #include <BOARD.h>
@@ -32,7 +30,6 @@
 // This gets you the prototypes for the public state machine functions.
 
 #include "ES_ServiceHeaders.h"
-#include "serial.h"
 
 
 /*----------------------------- Module Defines ----------------------------*/

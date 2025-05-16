@@ -1,60 +1,28 @@
 /****************************************************************************
- Module
-     ES_CheckEvents.c
- Description
-     source file for the module to call the User event checking routines
- Notes
-     Users should only modify the contents of the ES_EventList array.
- History
- When           Who     What/Why
- -------------- ---     --------
- 10/16/11 12:32 jec      started coding
-*****************************************************************************/
-
-#include "ES_Configure.h"
-#include "ES_Events.h"
-#include "ES_General.h"
-#include "ES_CheckEvents.h"
-#include <BOARD.h>
-
-// Include the header files for the module(s) with your event checkers. 
-// This gets you the prototypes for the event checking functions.
-
-#include EVENT_CHECK_HEADER
-
-// Fill in this array with the names of your event checking functions
-
-static CheckFunc * const ES_EventList[]={EVENT_CHECK_LIST };
-
-
-// Implementation for public functions
-
-/****************************************************************************
- Function
-   ES_CheckUserEvents
- Parameters
-   None
- Returns
-   TRUE if any of the user event checkers returned TRUE, FALSE otherwise
- Description
-   loop through the EF_EventList array executing the event checking functions
- Notes
-   
- Author
-   J. Edward Carryer, 10/25/11, 08:55
+*  ES_CheckEvents.c  ? user event checkers
 ****************************************************************************/
-uint8_t ES_CheckUserEvents( void ) 
+#include "ES_CheckEvents.h"
+#include "ES_Configure.h"
+#include "ES_Framework.h"
+#include <BOARD.h>
+#include <stdint.h>
+
+/*---------------------------------------------------------------*
+ *  Null checker used during early bring?up                       *
+ *---------------------------------------------------------------*/
+uint8_t CheckNullEvents(void)
 {
-  unsigned char i;
-  // loop through the array executing the event checking functions
-  for ( i=0; i< ARRAY_SIZE(ES_EventList); i++) {
-    if ( ES_EventList[i]() == TRUE )
-      break; // found a new event, so process it first
-  }
-  if ( i == ARRAY_SIZE(ES_EventList) ) // if no new events
-    return (FALSE);
-  else
-    return(TRUE);
+    /*  Never finds an event                                       */
+    return FALSE;
 }
-/*------------------------------- Footnotes -------------------------------*/
-/*------------------------------ End of file ------------------------------*/
+
+/*---------------------------------------------------------------*
+ *  *** NEW ***  satisfy framework until real user checkers exist *
+ *---------------------------------------------------------------*/
+void ES_CheckUserEvents(void)
+{
+    /*  In the finished project this should call each user checker
+     *  in EVENT_CHECK_LIST and post any events they find.         *
+     *  For now it intentionally does nothing.                     */
+}
+
