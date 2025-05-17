@@ -51,6 +51,8 @@ static const char *EventNames[] = {
  * -------------------------------------------------------------------- */
 #define MAX_NUM_SERVICES 1
 #define NUM_SERVICES     1
+#define TIMER_SERVICE 0      // if you already have a TimerService
+#define HCSR04_SERVICE 0   
 
 #define SERV_0_HEADER     "HCSR04Service.h"
 #define SERV_0_INIT       InitHCSR04Service

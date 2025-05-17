@@ -1,38 +1,26 @@
-/*--------------------------------------------------------------------------*
- *  HCSR04Service.h  ??  public interface for a single HC?SR04 ultrasound   *
- *--------------------------------------------------------------------------*/
+
+
 #ifndef HCSR04_SERVICE_H
 #define HCSR04_SERVICE_H
 
-/* ==== system / framework headers ======================================= */
-#include <xc.h>
 #include <stdint.h>
-#include <stdbool.h>          /* <?? may not supply bool in C89 mode        */
-#include <sys/attribs.h>
+#include <stdbool.h>
 
-#include "BOARD.h"
-#include "ES_Events.h"        /* gives ES_Event & ES_EventTyp_t            */
 #include "ES_Configure.h"
-#include "ES_Framework.h"
+#include "ES_Events.h"
 
-/* ---- guarantee a bool type even if <stdbool.h> was inert -------------- */
-#ifndef __cplusplus
-  #ifndef bool
-    typedef enum { false = 0, true = 1 } bool;
-  #endif
-#endif
+/* ------------ GPIO mapping (no IO_Ports dependency) ----------------- */
+#define TRIG_BIT        2           // RD2  -> J6?13  (digital pin 6)
+#define ECHO_BIT        11          // RD11 -> J5?04 (digital pin 35)
 
-/* ==== PIN ASSIGNMENTS (temporary, change to suit your PCB) ============= */
-#define HCSR04_TRIG_TRIS   TRISBbits.TRISB0
-#define HCSR04_TRIG_LAT    LATBbits.LATB0
-#define HCSR04_ECHO_TRIS   TRISBbits.TRISB1
+/* ------------ ES?timer slot used for 100?ms ping period ------------- */
+#define ULTRASONIC_TIMER  3         // pick any FREE slot 0?15 in your project
 
-/* ==== SERVICE?LOCAL DEFINES ============================================ */
-#define ULTRASONIC_TIMER   0     /* choose any free ES timer 0?15           */
-
-/* ==== PUBLIC FUNCTION PROTOTYPES (must follow the includes!) =========== */
+/* ------------ Public interface to the service ----------------------- */
 bool     PostHCSR04Service(ES_Event ThisEvent);
 uint8_t  InitHCSR04Service(uint8_t Priority);
 ES_Event RunHCSR04Service (ES_Event ThisEvent);
 
-#endif  /* HCSR04_SERVICE_H */
+/* Event type raised by this driver when a new distance is ready */
+
+#endif /* HCSR04_SERVICE_H */
