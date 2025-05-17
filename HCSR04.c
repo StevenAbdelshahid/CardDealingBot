@@ -15,7 +15,7 @@
 /* ------------  Timing constants  -------------------- */
 #define US_PER_CM       58        // sound round?trip = 58?µs/cm
 #define TRIG_PULSE_US   10        // 10?µs HIGH on TRIG
-#define PERIOD_MS       100       // sample rate (change as you like)
+#define PERIOD_MS       30       // sample rate (change as you like)
 
 /* ------------  module?scope state  ------------------ */
 static volatile uint16_t lastCm;
