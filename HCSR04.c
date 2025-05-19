@@ -5,93 +5,94 @@
 #include "IO_Ports.h"
 #include "HCSR04.h"
 
-/* ------------  Pin mapping via IO_Ports ------------- *
- * HC?SR04 TRIG  -> Y10 (RD2)   (output)
- * HC?SR04 ECHO  -> Y03 (RD11)  (input, IC4)
- * ----------------------------------------------------- */
-#define TRIG_MASK PIN10       // bit mask for Y10
-#define ECHO_BIT  11          // raw PORTY bit index for RD11
+/* ????????? pin choices (no extra masks) ??????????
+ *   TRIG  = Y10  (RD2)    ?  constant is  PIN10
+ *   ECHO  = Y03  (RD11)   ?  constant is  PIN3
+ * The IO_Ports functions already expect those masks.
+ * ------------------------------------------------- */
+#define TRIG_PIN   PIN10 // Y 10
+#define ECHO_PIN   PIN3 // Y 3
 
-/* ------------  Timing constants  -------------------- */
-#define US_PER_CM       58        // sound round?trip = 58?µs/cm
-#define TRIG_PULSE_US   10        // 10?µs HIGH on TRIG
-#define PERIOD_MS       30       // sample rate (change as you like)
+/* ????????? timing constants ????????? */
+#define TRIG_PULSE_US   10     // 10?µs high on TRIG
+#define PERIOD_MS       30     // 30?ms sample period
+#define US_PER_CM       58     // round?trip sound time
 
-/* ------------  module?scope state  ------------------ */
+/* ????????? module?scope vars ????????? */
 static volatile uint16_t lastCm;
 static volatile uint8_t  newFlag;
 static volatile uint16_t echoStart;
 
-/* helper: issue the precise 10?µs trigger pulse */
+/* run?time?derived tick length */
+static uint16_t t2TicksPerUs;
+static float    t2TickUs;
+
+/* 10?µs trigger helper */
 static inline void FireTrigger(void)
 {
-    /* set TRIG high via IO_Ports */
-    IO_PortsSetPortBits(PORTY, TRIG_MASK);
+    IO_PortsSetPortBits(PORTY, TRIG_PIN);           // TRIG ?
 
-    /* busy?wait 10?µs : Timer?2 is 0.2?µs/tick (see init) */
     uint16_t start = TMR2;
-    while ((uint16_t)(TMR2 - start) < 50) ;   // 10?µs / 0.2?µs = 50 ticks
+    uint16_t pulseTicks = TRIG_PULSE_US * t2TicksPerUs;
+    while ((uint16_t)(TMR2 - start) < pulseTicks) ; // wait
 
-    /* drive TRIG low */
-    IO_PortsClearPortBits(PORTY, TRIG_MASK);
+    IO_PortsClearPortBits(PORTY, TRIG_PIN);         // TRIG ?
 }
 
-/**********************************************************************
- *  Public init ? configures pins **through IO_Ports** and starts HW.  *
- *********************************************************************/
+/**********************************************************************/
 void HCSR04_Init(void)
 {
-    /********  -- I/O directions via IO_Ports API --  ********/
-    IO_PortsSetPortOutputs(PORTY, TRIG_MASK);   // TRIG as output
-    IO_PortsSetPortInputs (PORTY, PIN3);        // ECHO (Y3) as input
+    /* ??? I/O directions through IO_Ports ????????? */
+    IO_PortsSetPortOutputs(PORTY, TRIG_PIN);   // TRIG = output
+    IO_PortsSetPortInputs (PORTY, ECHO_PIN);   // ECHO = input
 
-    /********  -- Timer?2 : 0.2?µs tick (80?MHz ÷?8) -- *******/
+    /* ??? Timer?2 tick length (use PB clock) ????? */
+    uint32_t pbclk = BOARD_GetPBClock();    // typically 10?MHz
+    const uint8_t T2_PRESCALE = 8;          // 1?:?8
+    t2TickUs     = (1e6f * T2_PRESCALE) / pbclk;
+    t2TicksPerUs = (uint16_t)(1.0f / t2TickUs + 0.5f);
+
     T2CON = 0;
-    T2CONbits.TCKPS = 0b010;      // prescale?=?1:8 ? 10?ns * 8 = 0.2?µs/tick
+    T2CONbits.TCKPS = 0b010;        // prescale = 8
     PR2  = 0xFFFF;
     TMR2 = 0;
     T2CONbits.ON = 1;
 
-    /********  -- IC4 : timestamps Echo HIGH & LOW edges -- ***/
+    /* ??? IC4: capture ECHO edges ????????????????? */
     IC4CON = 0;
-    IC4CONbits.ICTMR = 1;         // use Timer?2 as time base
-    IC4CONbits.ICM   = 0b001;     // capture every rising edge ? ISR switches mode
-    IPC4bits.IC4IP   = 4;         // priority 4
+    IC4CONbits.ICTMR = 1;           // use TMR2 time?base
+    IC4CONbits.ICM   = 0b001;       // first rising
+    IPC4bits.IC4IP   = 4;
     IFS0CLR = _IFS0_IC4IF_MASK;
     IEC0SET = _IEC0_IC4IE_MASK;
     IC4CONbits.ON = 1;
 
-    /********  -- Timer?3 : periodic trigger (PERIOD_MS) -- ***/
+    /* ??? Timer?3: periodic ping ?????????????????? */
     T3CON = 0;
-    T3CONbits.TCKPS = 0b111;      // prescale 1:256
-    PR3 = (unsigned)((SYS_FREQ / 256) * PERIOD_MS / 1000);   // ticks per 100?ms
-    IPC3bits.T3IP = 3;            // priority 3
+    T3CONbits.TCKPS = 0b111;        // 1?:?256
+    PR3 = (uint32_t)((pbclk / 256) * PERIOD_MS / 1000);
+    IPC3bits.T3IP = 3;
     IFS0CLR = _IFS0_T3IF_MASK;
     IEC0SET = _IEC0_T3IE_MASK;
     T3CONbits.ON = 1;
 
-    /* clear flags & launch the first ping */
     newFlag = 0;
-    FireTrigger();
+    FireTrigger();                  // first shot
 }
 
-/**********************************************************************
- *  ISRs                                                              *
- *********************************************************************/
-
-/* -------- Input?Capture 4 ? Echo timing -------- */
+/* ????????? ISRs ????????? */
 void __ISR(_INPUT_CAPTURE_4_VECTOR, IPL4SOFT) IC4ISR(void)
 {
     static uint8_t waitingForFall = 0;
 
-    if (!waitingForFall) {                // rising edge
-        echoStart = IC4BUF;               // store start timestamp
+    if (!waitingForFall) {                // rising
+        echoStart = IC4BUF;
         waitingForFall = 1;
-        IC4CONbits.ICM = 0b010;           // switch to falling?edge capture
-    } else {                              // falling edge
+        IC4CONbits.ICM = 0b010;           // next falling
+    } else {                              // falling
         uint16_t echoEnd = IC4BUF;
-        uint32_t flight = echoEnd - echoStart;     // ticks (0.2?µs each)
-        lastCm = (uint16_t)((flight * 0.2f) / US_PER_CM + 0.5f);
+        uint32_t ticks   = echoEnd - echoStart;
+        lastCm = (uint16_t)((ticks * t2TickUs) / US_PER_CM + 0.5f);
         newFlag = 1;
         waitingForFall = 0;
         IC4CONbits.ICM = 0b001;           // back to rising
@@ -99,22 +100,16 @@ void __ISR(_INPUT_CAPTURE_4_VECTOR, IPL4SOFT) IC4ISR(void)
     IFS0CLR = _IFS0_IC4IF_MASK;
 }
 
-/* -------- Timer?3 ? kick the next ping -------- */
 void __ISR(_TIMER_3_VECTOR, IPL3SOFT) T3ISR(void)
 {
     FireTrigger();
     IFS0CLR = _IFS0_T3IF_MASK;
 }
 
-/**********************************************************************
- *  Tiny API getters                                                  *
- *********************************************************************/
+/* ????????? API getters ????????? */
 uint8_t HCSR04_NewReadingAvailable(void)
 {
-    if (newFlag) {
-        newFlag = 0;
-        return 1;
-    }
+    if (newFlag) { newFlag = 0; return 1; }
     return 0;
 }
 

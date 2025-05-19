@@ -6,10 +6,10 @@
 
 int main(void)
 {
-    BOARD_Init();          // sets up UART @115200 and enables interrupts
-    HCSR04_Init();         // configures pins through IO_Ports & starts the first ping
+    BOARD_Init();           // sets UART & enables interrupts
+    HCSR04_Init();          // configure pins & start the first ping
 
-    printf("Boot OK ? HC?SR04 test running\r\n");
+    printf("Boot OK ? HC?SR04 test\r\n");
 
     while (1) {
         if (HCSR04_NewReadingAvailable()) {
