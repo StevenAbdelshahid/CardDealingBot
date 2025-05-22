@@ -46,6 +46,8 @@ static inline void Motor_SlowRev(void) { Motor_SetDirection(1); Motor_SetDuty(DU
 static inline void Motor_FastRev(void) { Motor_SetDirection(1); Motor_SetDuty(DUTY_FAST); }
 
 /* ------------------------------------------------------------------- */
+
+#if 0
 int main(void)
 {
     BOARD_Init();
@@ -82,7 +84,7 @@ int main(void)
                 lastDuty     = DUTY_FAST;
                 evt.EventType = DIST_FAR;
             } else {
-                Motor_SlowFwd();             // still forward in mid-band
+                Motor_SlowRev();             // spin backwards in mid-band
                 lastDuty     = DUTY_SLOW;
                 evt.EventType = ES_NO_EVENT;
             }
@@ -98,3 +100,4 @@ int main(void)
         }
     }
 }
+#endif
