@@ -16,13 +16,13 @@
 /* ---------- SERVO CONFIG -------------------------------------------- */
 #define SERVO_PIN         RC_PORTY06
 #define PULSE_MIN_US      1000u
-#define PULSE_MAX_US      2000u
+#define PULSE_MAX_US      1500u
 #define PULSE_STEP_US        5u
 #define STEP_INTERVAL_MS   100u
 
 /* ---------- PERSON FILTER ------------------------------------------- */
-#define BAND_MIN_CM          10u
-#define BAND_MAX_CM          30u
+#define BAND_MIN_CM          30u
+#define BAND_MAX_CM          40u
 #define WINDOW_SIZE          10u
 #define PRESENCE_THRESHOLD    6u
 #define ABSENCE_THRESHOLD     3u
@@ -37,7 +37,7 @@
 #define IN2_MASK              PIN5
 #define DUTY_FAST             800u
 #define MOTOR_DELAY_MS       1000u      /* wait 1?s after pause        */
-#define MOTOR_RUN_MS         1000u      /* spin forward for 1?s        */
+#define MOTOR_RUN_MS         500u      /* spin forward for 1?s        */
 
 /* ---------- MODE TOGGLE (PORTZ?11) ---------------------------------- */
 #define MODE_SW_MASK     PIN11          /* PORTZ?11, RE0               */
