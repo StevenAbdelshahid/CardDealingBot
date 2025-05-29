@@ -1,6 +1,7 @@
 #include "ES_Configure.h"
 #include "ES_Framework.h"
 #include "RC_Servo.h"
+#include <stdbool.h>
 
 /* choose ONE of the ten RC?servo pins */
 #define SERVO_PIN  RC_PORTY06
