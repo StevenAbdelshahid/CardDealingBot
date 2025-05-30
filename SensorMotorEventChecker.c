@@ -5,8 +5,8 @@
 #include "HCSR04.h"
 #include <stdint.h>
 
-#define NEAR_CM          25
-#define FAR_CM           150
+#define NEAR_CM          35
+#define FAR_CM           90
 #define STALL_TIMEOUT_MS 200
 
 /* ---------- DISTANCE checker (never clears newFlag) ----------------- */

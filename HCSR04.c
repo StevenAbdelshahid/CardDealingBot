@@ -17,7 +17,7 @@
 /* Sensor spec bounds */
 #define MIN_CM          2
 #define MAX_CM          400
-#define JUMP_CM         200      // threshold for ?big jump?
+#define JUMP_CM         300      // threshold for ?big jump?
 
 /* Module state */
 static volatile uint16_t lastCm;
