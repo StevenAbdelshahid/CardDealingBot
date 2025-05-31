@@ -47,8 +47,4 @@ int main(void) {
 }
 
 #else
-
-#include <stdio.h>
-// standalone demo code unchanged...
-
 #endif  /* HSM_MODE */
