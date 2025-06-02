@@ -21,7 +21,7 @@
 /* Duty cycles (0-1000 scale) */
 #define DUTY_STOP   0
 #define DUTY_SLOW   400
-#define DUTY_FAST   800
+#define DUTY_FAST   1000
 
 /* ------------------------------------------------------------------- */
 static inline void Motor_SetDuty(uint16_t duty) {

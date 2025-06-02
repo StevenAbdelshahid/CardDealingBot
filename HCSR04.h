@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 void     HCSR04_Init(void);                 // call once during startup
+void HCSR04_Reset(void);          /* clears filter + flag state */
 uint8_t  HCSR04_NewReadingAvailable(void);  // returns 1 once per fresh echo
 uint16_t HCSR04_GetDistanceCm(void);        // last measured distance
 

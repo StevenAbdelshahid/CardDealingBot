@@ -28,8 +28,8 @@
 
 /* handy pulse values for 50 Hz servo (in microseconds) */
 #define SERVO_CENTER 1500u    /* neutral position */
-#define SERVO_LEFT   1000u    /* one extreme */
-#define SERVO_RIGHT  2000u    /* the other extreme */
+#define SERVO_LEFT   500u    /* one extreme */
+#define SERVO_RIGHT  2500u    /* the other extreme */
 
 static uint8_t MyPriority;  /* our service?s priority in the ES_Framework */
 

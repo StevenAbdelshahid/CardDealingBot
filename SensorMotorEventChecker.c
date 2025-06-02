@@ -5,8 +5,9 @@
 #include "HCSR04.h"
 #include <stdint.h>
 
-#define NEAR_CM          35
-#define FAR_CM           90
+#define PLAYER_DETECT_CM   20
+#define NEAR_CM            (PLAYER_DETECT_CM      )   // 45
+#define FAR_CM             (PLAYER_DETECT_CM + 10)     // 49
 #define STALL_TIMEOUT_MS 200
 
 /* ????? distance checker enable flag ????? */
@@ -21,7 +22,7 @@ uint8_t CheckDistance(void)
     static uint8_t last = 0xFF;        /* 0 near, 1 mid, 2 far */
     uint16_t cm = HCSR04_GetDistanceCm();
 
-    uint8_t now = (cm < NEAR_CM) ? 0 : (cm > FAR_CM) ? 2 : 1;
+    uint8_t now = (cm >= NEAR_CM) ? 0 : (cm <= FAR_CM) ? 2 : 1;
     if (now != last) {
         ES_Event e;
         if (now == 0)      e.EventType = DIST_NEAR;

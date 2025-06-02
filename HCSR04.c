@@ -164,3 +164,20 @@ uint16_t HCSR04_GetDistanceCm(void)
 {
     return lastCm;
 }
+
+/* put near the bottom, after the existing code */
+
+void HCSR04_Reset(void)
+{
+    __builtin_disable_interrupts();      /* keep ISR quiet while we poke */
+
+    lastCm         = 0;
+    newFlag        = 0;
+    prevCm         = 0;
+    candidateCm    = 0;
+    candidateCount = 0;
+    echoStart      = 0;
+
+    __builtin_enable_interrupts();
+}
+
