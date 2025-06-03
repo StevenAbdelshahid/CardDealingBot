@@ -5,7 +5,7 @@
 #include "HCSR04.h"
 #include <stdint.h>
 
-#define PLAYER_DETECT_CM   20
+#define PLAYER_DETECT_CM   30
 #define NEAR_CM            (PLAYER_DETECT_CM      )   // 45
 #define FAR_CM             (PLAYER_DETECT_CM + 10)     // 49
 #define STALL_TIMEOUT_MS 200
