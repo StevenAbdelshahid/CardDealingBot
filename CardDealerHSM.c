@@ -1,16 +1,8 @@
 /*******************************************************************************
  *  CardDealerHSM.c ? Hierarchical?State?Machine for a servo?based card dealer
  *
- *  v2.22  (small but critical update)
- *  -----------------------------------
- *  ? **Calibration sweep** now finishes with the same 50?ms FastFwd ?push?
- *    that the normal dealing sweeps get.  This guarantees every card fired
- *    during calibration is also tucked back before we enter DealSweepS.
- *
- *      ? New state **CalSweepNudgeS** handles that forward bump, then runs the
- *        exact wrap?up code that used to live in CalSweepS.
- *
- *  ? Dealing logic, watchdog, switch handling, LEDs, timings ? unchanged.
+ *  v2.23 ? motor-forward push now fires on every sweep *and* first player
+ *          is dealt immediately after that push.
  *******************************************************************************/
 
 #include <xc.h>
@@ -37,8 +29,8 @@
 #define STEP_MS        70u
 #define STEP_US        20u
 #define MOTOR_DELAY_MS 800u
-#define MOTOR_FWD_MS   200u
-#define NUDGE_MS       50u
+#define MOTOR_FWD_MS   225u
+#define NUDGE_MS       100u
 #define DUTY_FAST      1000u
 #define WDOG_MS        3000u
 
@@ -183,16 +175,13 @@ ES_Event RunCardDealerHSM(ES_Event ev){
             uint8_t wrap = ServoStep(); ArmHeartbeat(); KickWatchdog();
             if(warmCnt && --warmCnt==0) puts(",,READY");
 
-            if(wrap && !warmCnt){                  /* end?of?cal sweep */
+            if(wrap && !warmCnt){
                 ES_Timer_StopTimer(TMR_SWEEP);
                 FastFwd(); ES_Timer_InitTimer(TMR_MOTOR, NUDGE_MS);
                 State = CalSweepNudgeS; break;
             }
 
-            if(players==MAX_PLAYERS && !warmCnt){  /* filled before wrap */
-                /* force immediate wrap?n?nudge path next cycle */
-                pulse = MAX_PULSE_US;              /* ServoStep will wrap */
-            }
+            if(players==MAX_PLAYERS && !warmCnt){ pulse = MAX_PULSE_US; }
         } else if(ev.EventType==DIST_NEAR && !warmCnt && players<MAX_PLAYERS){
             uint16_t ang=pulse;
             if(!players||(uint16_t)(ang-playerAngle[players-1])>MIN_SEP_US){
@@ -216,7 +205,6 @@ ES_Event RunCardDealerHSM(ES_Event ev){
             State=CalSweepS; puts(",,HSM=CAL");
         } break;
 
-    /* ????? 50?ms forward push at end of calibration sweep ????? */
     case CalSweepNudgeS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
             StopM();
@@ -233,16 +221,10 @@ ES_Event RunCardDealerHSM(ES_Event ev){
     case DealSweepS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_SWEEP){
 
-            if(playerRemain[idx] && pulse==playerAngle[idx]){
-                ES_Timer_StopTimer(TMR_SWEEP);
-                ES_Timer_InitTimer(TMR_MOTOR,MOTOR_DELAY_MS);
-                State=DealDelayS; puts(",,HSM=DELAY"); break;
-            }
-
-            uint8_t wrapped = ServoStep();
+            uint8_t wrapped = ServoStep();         /* first: move servo */
             ArmHeartbeat(); KickWatchdog();
 
-            if(wrapped){
+            if(wrapped){                           /* end?of?round push */
                 ES_Timer_StopTimer(TMR_SWEEP);
                 FastFwd(); ES_Timer_InitTimer(TMR_MOTOR, NUDGE_MS);
                 State = SweepNudgeS; break;
@@ -282,8 +264,15 @@ ES_Event RunCardDealerHSM(ES_Event ev){
     /* ????? Sweep?boundary nudge ????? */
     case SweepNudgeS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
-            StopM(); ArmHeartbeat(); KickWatchdog();
-            State=DealSweepS; puts(",,HSM=SWEEP");
+            StopM();
+            /* If we halted exactly at a player, deal immediately */
+            if(playerRemain[idx] && pulse==playerAngle[idx]){
+                ES_Timer_InitTimer(TMR_MOTOR,MOTOR_DELAY_MS);
+                State=DealDelayS; puts(",,HSM=DELAY");
+            } else {
+                ArmHeartbeat(); KickWatchdog();
+                State=DealSweepS; puts(",,HSM=SWEEP");
+            }
         } break;
 
     /* ????? DonePauseS ????? */
