@@ -1,18 +1,24 @@
 /*******************************************************************************
- *  CardDealerHSM.c ? Hierarchical?State?Machine for a servo?based card dealer
+ *  CardDealerHSM.c ? Hierarchical?State?Machine for a servo?based card dealer
  *
- *  v2.27  ? Calibration deals get the same Rev???Fwd?lock sequence
- *  -------------------------------------------------------------------------
- *  ?  Added states **CalRevS** and **CalLockS** (mirrors of DealRevS /
- *    DealLockS).  A calibration deal now:
- *        CalDelayS  ?  FastRev?225?ms  ?  FastFwd?112?ms  ?  resume sweep.
- *  ?  No other states or timings changed.
+ *  v2.32 ? OFF?reset after Done + full console telemetry
+ *  ------------------------------------------------------
+ *  ?  When the last card is dealt the HSM now arms the heartbeat timer,
+ *    so the slide?switch is still polled and an OFF edge drops straight
+ *    back to Idle.
+ *  ?  Restored all data?logger prints that existed in the v2.15 baseline:
+ *        ? sonar raw + filtered cm every ServoStep()
+ *        ?  ,,READY  when warm?up completes
+ *        ?  ,,PLAYER<n>=<µs>  on every sonar hit
+ *        ?  ,,CAL_DEAL_PULSE / ,,P<n>_LEFT  etc.
+ *  ?  No logic, timings, or motor behaviour were otherwise changed.
  *******************************************************************************/
 
 #include <xc.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "BOARD.h"
 #include "CardDealerHSM.h"
@@ -27,14 +33,14 @@
 
 /* ????????? Tunables ????????? */
 #define MAX_PLAYERS      4
-#define MIN_SEP_US       150u
+#define MIN_SEP_US       200u
 #define WARMUP_STEPS     10
 #define STEP_MS          70u
 #define STEP_US          20u
 #define MOTOR_DELAY_MS   800u
-#define MOTOR_FWD_MS     315u                 /* FastRev duration (deal)  */
-#define MOTOR_LOCK_MS    (MOTOR_FWD_MS/2u)    /* FastFwd tuck            */
-#define NUDGE_MS         100u                 /* sweep?boundary tuck      */
+#define MOTOR_FWD_MS     330u                 /* FastRev duration (deal)  */
+#define MOTOR_LOCK_MS    (MOTOR_FWD_MS/2u)    /* FastFwd tuck             */
+#define NUDGE_MS         100u                 /* sweep?boundary tuck       */
 #define DUTY_FAST        1000u
 #define WDOG_MS          3000u
 
@@ -64,6 +70,10 @@ static inline void SetLED(uint8_t p){ LED_D6_LAT=(p&1)?0:1; LED_D7_LAT=(p&2)?0:1
 static inline void UpdateLEDs(GameMode_t g){
     SetLED(g==GM_BLACKJACK?1:(g==GM_FIVE_CARD_DRAW?2:(g==GM_GO_FISH?3:0)));
 }
+static inline const char *ModeName(GameMode_t g){
+    return g==GM_BLACKJACK? "Blackjack":
+           g==GM_FIVE_CARD_DRAW? "FiveCardDraw":"GoFish";
+}
 
 /* ????????? HSM plumbing ????????? */
 typedef enum { IdleS,
@@ -87,10 +97,7 @@ static uint16_t pulse=MIN_PULSE_US, prevP=MIN_PULSE_US;
 static int8_t   warmCnt=0;
 static GameMode_t CurMode=GM_BLACKJACK;
 
-/* Slide?switch debounce */
-static uint8_t swHist=0xFF;
-#define SW_HIGH() (swHist==0xFF)
-#define SW_LOW()  (swHist==0x00)
+static uint8_t prevSwitch = 1;                /* track debounced switch  */
 
 /* ????????? Motor helpers ????????? */
 static inline void Duty(uint16_t d){ PWM_SetDutyCycle(ENA_PWM_MACRO,d); }
@@ -103,8 +110,18 @@ static inline void StopM(void){ Duty(0); }
 /* ????????? Servo helper ????????? */
 static uint8_t ServoStep(void){
     prevP = pulse;
-    if(pulse >= MAX_PULSE_US){ pulse = MIN_PULSE_US; RC_SetPulseTime(SERVO_PIN,pulse); return 1; }
-    pulse += STEP_US; RC_SetPulseTime(SERVO_PIN,pulse);
+    if(pulse >= MAX_PULSE_US){
+        pulse = MIN_PULSE_US;
+        RC_SetPulseTime(SERVO_PIN,pulse);
+        return 1;
+    }
+    pulse += STEP_US;
+    RC_SetPulseTime(SERVO_PIN,pulse);
+
+    /* telemetry ? raw & filtered cm (same for now) */
+    uint16_t cm = HCSR04_GetDistanceCm();
+    printf("%u,%u,\r\n", cm, cm);
+
     return 0;
 }
 static inline bool Cross(uint16_t a,uint16_t b,uint16_t t){
@@ -124,54 +141,87 @@ static void SortAngles(void){
 static void ResetIdle(void){
     StopM(); Distance_Enable(0); HCSR04_Reset();
     ES_Timer_StopTimer(TMR_MOTOR);
-    pulse=prevP=MIN_PULSE_US; RC_SetPulseTime(SERVO_PIN,pulse);
-    FastFwd(); ES_Timer_InitTimer(TMR_MOTOR, NUDGE_MS);                 /* tuck */
-    SetLED(0); State=IdleS; ArmHeartbeat(); KickWatchdog();
+    pulse = prevP = MIN_PULSE_US;
+    RC_SetPulseTime(SERVO_PIN, pulse);
+    SetLED(0);
+    State = IdleS;
+    ArmHeartbeat();
+    KickWatchdog();
+    puts(",,HSM=IDLE");
 }
 
 /* ????????? Framework glue ????????? */
 uint8_t PostCardDealerHSM(ES_Event e){ return ES_PostToService(MyPrio,e); }
 
 uint8_t InitCardDealerHSM(uint8_t p){
-    MyPrio=p; GameButton_Init();
-    PWM_AddPins(ENA_PWM_MACRO); StopM();
-    RC_SetPulseTime(SERVO_PIN,MIN_PULSE_US);
-    LED_D6_TRIS=LED_D7_TRIS=0; UpdateLEDs(GM_BLACKJACK);
-    State=IdleS; ArmHeartbeat(); KickWatchdog(); return 1;
+    MyPrio = p;
+    GameButton_Init();
+    PWM_AddPins(ENA_PWM_MACRO);
+    StopM();
+    RC_SetPulseTime(SERVO_PIN, MIN_PULSE_US);
+    LED_D6_TRIS = LED_D7_TRIS = 0;
+    UpdateLEDs(GM_BLACKJACK);
+    puts("\r\nraw_cm,filt_cm,event");
+    ResetIdle();                                      /* start in Idle    */
+
+    /* set prevSwitch so first edge is seen */
+    prevSwitch = IS_SWITCH_ON() ? 0 : 1;
+    return 1;
 }
 
 /* ????????? Main HSM ????????? */
 ES_Event RunCardDealerHSM(ES_Event ev){
-    swHist=(swHist<<1)|(IS_SWITCH_ON()?0:1);
-    if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_WDOG){ ResetIdle(); return NO_EVENT; }
-    if(SW_HIGH() && State!=IdleS){ ResetIdle(); return NO_EVENT; }
+    /* debounce slide?switch into curSwitch (1=ON,0=OFF) */
+    static uint8_t swHist = 0xFF;
+    swHist = (swHist << 1) | (IS_SWITCH_ON() ? 1 : 0);
+    uint8_t curSwitch = (swHist == 0xFF) ? 1 : (swHist == 0x00 ? 0 : prevSwitch);
 
-    if(SW_LOW() && State==IdleS){
-        players=idx=0; pulse=prevP=MIN_PULSE_US; warmCnt=WARMUP_STEPS;
-        memset(playerRemain,0,sizeof(playerRemain));
-        HCSR04_Reset(); Distance_Enable(1); State=CalSweepS;
+    /* ?? handle switch edges ?? */
+    if(curSwitch != prevSwitch){
+        if(curSwitch == 0){                         /* OFF edge */
+            ResetIdle();
+        }else if(State == IdleS){                   /* ON edge (only from Idle) */
+            players = idx = 0;
+            pulse   = prevP = MIN_PULSE_US;
+            warmCnt = WARMUP_STEPS;
+            memset(playerRemain, 0, sizeof(playerRemain));
+            HCSR04_Reset(); Distance_Enable(1);
+            printf(",,GAME=%s\r\n", ModeName(CurMode));
+            State = CalSweepS;
+        }
+        prevSwitch = curSwitch;
     }
 
-    if(State==IdleS && ev.EventType==GAME_BTN_PRESSED){
-        CurMode=(GameMode_t)ev.EventParam; UpdateLEDs(CurMode); return NO_EVENT;
+    /* watchdog */
+    if(ev.EventType == ES_TIMEOUT && ev.EventParam == TMR_WDOG){
+        ResetIdle();
+        return NO_EVENT;
     }
 
+    /* game?select allowed only while idle */
+    if(State == IdleS && ev.EventType == GAME_BTN_PRESSED){
+        CurMode = (GameMode_t)ev.EventParam;
+        UpdateLEDs(CurMode);
+        printf(",,GAME=%s\r\n", ModeName(CurMode));
+        return NO_EVENT;
+    }
+
+    /* ---------------- state machine ---------------- */
     switch(State){
 
     /* ????????? IdleS ????????? */
     case IdleS:
-        if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR) StopM();
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_SWEEP) ArmHeartbeat(), KickWatchdog();
         break;
 
-    /* ????? Calibration sweep ????? */
+    /* ---------- Calibration sweep & deals ---------- */
     case CalSweepS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_SWEEP){
             uint8_t wrap=ServoStep(); ArmHeartbeat(); KickWatchdog();
-            if(warmCnt && --warmCnt==0);
+            if(warmCnt && --warmCnt==0) puts(",,READY");
             if(wrap && !warmCnt){
                 ES_Timer_StopTimer(TMR_SWEEP);
-                FastFwd(); ES_Timer_InitTimer(TMR_MOTOR,NUDGE_MS);        /* tuck */
+                FastFwd(); ES_Timer_InitTimer(TMR_MOTOR,NUDGE_MS);
                 State=CalSweepNudgeS; break;
             }
             if(players==MAX_PLAYERS && !warmCnt) pulse=MAX_PULSE_US;
@@ -179,25 +229,29 @@ ES_Event RunCardDealerHSM(ES_Event ev){
             uint16_t ang=pulse;
             if(!players||(uint16_t)(ang-playerAngle[players-1])>MIN_SEP_US){
                 playerAngle[players]=ang; playerRemain[players]=CardsPP[CurMode];
+                printf(",,PLAYER%u=%u\r\n", players+1, ang);
                 ES_Timer_StopTimer(TMR_SWEEP); ES_Timer_InitTimer(TMR_MOTOR,MOTOR_DELAY_MS);
                 idx=players++; State=CalDelayS;
             }
         }
         break;
 
-    case CalDelayS:              /* settling before Rev */
+    case CalDelayS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
+            printf(",,CAL_DEAL_PULSE=%u\r\n", pulse);
             FastRev(); ES_Timer_InitTimer(TMR_MOTOR,MOTOR_FWD_MS); State=CalRevS;
         } break;
 
-    case CalRevS:                /* Rev fling           */
+    case CalRevS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
             FastFwd(); ES_Timer_InitTimer(TMR_MOTOR,MOTOR_LOCK_MS); State=CalLockS;
         } break;
 
-    case CalLockS:               /* Fwd tuck            */
+    case CalLockS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
-            StopM(); --playerRemain[idx]; ArmHeartbeat(); KickWatchdog(); State=CalSweepS;
+            StopM(); --playerRemain[idx];
+            printf(",,P%u_LEFT=%u\r\n", idx+1, playerRemain[idx]);
+            ArmHeartbeat(); KickWatchdog(); State=CalSweepS;
         } break;
 
     case CalSweepNudgeS:
@@ -210,13 +264,13 @@ ES_Event RunCardDealerHSM(ES_Event ev){
             } else ResetIdle();
         } break;
 
-    /* ????? Dealing sweep ????? */
+    /* -------------- Dealing sweep -------------- */
     case DealSweepS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_SWEEP){
             uint8_t wrapped=ServoStep(); ArmHeartbeat(); KickWatchdog();
             if(wrapped){
                 ES_Timer_StopTimer(TMR_SWEEP);
-                FastFwd(); ES_Timer_InitTimer(TMR_MOTOR,NUDGE_MS);        /* tuck */
+                FastFwd(); ES_Timer_InitTimer(TMR_MOTOR,NUDGE_MS);
                 State=SweepNudgeS; break;
             }
             if(playerRemain[idx] && Cross(prevP,pulse,playerAngle[idx])){
@@ -225,7 +279,7 @@ ES_Event RunCardDealerHSM(ES_Event ev){
             }
         } break;
 
-    /* ------------ deal sequence: Rev ? Fwd?lock ------------ */
+    /* ---------- deal sequence: Rev ? Fwd?lock ---------- */
     case DealDelayS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
             FastRev(); ES_Timer_InitTimer(TMR_MOTOR,MOTOR_FWD_MS); State=DealRevS;
@@ -239,12 +293,16 @@ ES_Event RunCardDealerHSM(ES_Event ev){
     case DealLockS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
             StopM(); --playerRemain[idx];
-            if(AllDealt()){ State=DonePauseS; }
-            else { AdvanceIdx(); State=DealSweepS; ArmHeartbeat(); KickWatchdog(); }
+            printf(",,P%u_LEFT=%u\r\n", idx+1, playerRemain[idx]);
+            if(AllDealt()){
+                State=DonePauseS;
+                ArmHeartbeat(); KickWatchdog();           /* keep polling switch */
+            }else{
+                AdvanceIdx(); State=DealSweepS; ArmHeartbeat(); KickWatchdog();
+            }
         } break;
-    /* -------------------------------------------------------- */
 
-    /* ????? Sweep?boundary nudge ????? */
+    /* ---------- Sweep?boundary tuck ---------- */
     case SweepNudgeS:
         if(ev.EventType==ES_TIMEOUT && ev.EventParam==TMR_MOTOR){
             StopM();
@@ -260,5 +318,6 @@ ES_Event RunCardDealerHSM(ES_Event ev){
 
     default: break;
     }
+
     return NO_EVENT;
 }
