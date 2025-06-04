@@ -33,12 +33,12 @@
 
 /* ????????? Tunables ????????? */
 #define MAX_PLAYERS      4
-#define MIN_SEP_US       200u
+#define MIN_SEP_US       250u
 #define WARMUP_STEPS     10
 #define STEP_MS          70u
 #define STEP_US          20u
 #define MOTOR_DELAY_MS   800u
-#define MOTOR_FWD_MS     330u                 /* FastRev duration (deal)  */
+#define MOTOR_FWD_MS     350u                 /* FastRev duration (deal)  */
 #define MOTOR_LOCK_MS    (MOTOR_FWD_MS/2u)    /* FastFwd tuck             */
 #define NUDGE_MS         100u                 /* sweep?boundary tuck       */
 #define DUTY_FAST        1000u
